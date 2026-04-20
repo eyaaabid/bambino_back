@@ -5,7 +5,13 @@ import { env } from './config/env.js'
 import apiRouter from './routes/api.js'
 import { Hospital } from './models/Hospital.js'
 
-await mongoose.connect(env.mongoUri, { serverSelectionTimeoutMS: 10_000 })
+await mongoose.connect(env.mongoUri, {
+  serverSelectionTimeoutMS: 10_000,
+  // Cloud hosts (e.g. Railway) + Node’s default “happy eyeballs” can pick a path
+  // that breaks Atlas TLS for some regions; force IPv4 like a normal laptop client.
+  family: 4,
+  autoSelectFamily: false,
+})
 const dbName = mongoose.connection.db?.databaseName
 if (dbName) console.log(`MongoDB database: "${dbName}"`)
 const hospitalCount = await Hospital.countDocuments()
