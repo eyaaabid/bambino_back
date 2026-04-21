@@ -68,7 +68,11 @@ const complications = [
 ]
 
 async function main() {
-  await mongoose.connect(env.mongoUri, { serverSelectionTimeoutMS: 10_000 })
+  await mongoose.connect(env.mongoUri, {
+    serverSelectionTimeoutMS: 10_000,
+    family: 4,
+    autoSelectFamily: false,
+  })
   const dbName = mongoose.connection.db?.databaseName ?? '(inconnue)'
   console.log(`Connexion MongoDB — base utilisée : "${dbName}" (vérifiez que c’est la même que dans MONGODB_URI de l’API).`)
 

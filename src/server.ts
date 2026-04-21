@@ -14,6 +14,12 @@ await mongoose.connect(env.mongoUri, {
 })
 const dbName = mongoose.connection.db?.databaseName
 if (dbName) console.log(`MongoDB database: "${dbName}"`)
+try {
+  const hc = await Hospital.countDocuments()
+  console.log(`MongoDB hospitals collection: ${hc} document(s). GET /api/health pour le même résumé.`)
+} catch {
+  /* ignore */
+}
 const hospitalCount = await Hospital.countDocuments()
 if (hospitalCount === 0) {
   console.warn(

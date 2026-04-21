@@ -154,6 +154,16 @@ router.get(
   })
 )
 
+/** Vérif déploiement : même base que le seed si `database` + `hospitalCount` > 0. */
+router.get(
+  '/health',
+  asyncHandler(async (_req, res) => {
+    const database = mongoose.connection.db?.databaseName ?? null
+    const hospitalCount = await Hospital.countDocuments()
+    res.json({ ok: true, database, hospitalCount })
+  })
+)
+
 router.get(
   '/complications',
   asyncHandler(async (req, res) => {
