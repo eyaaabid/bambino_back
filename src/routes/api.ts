@@ -936,6 +936,27 @@ router.get(
   })
 )
 
+const initialMonitoringVisitCreateSchema = z
+  .object({
+    visit_date: z.string().optional().nullable(),
+    weeks_ga: z.string().optional().nullable(),
+    metrorragia: z.boolean().optional(),
+    leucorrhea: z.boolean().optional(),
+    ma: z.string().optional().nullable(),
+    hu: z.string().optional().nullable(),
+    bdc: z.string().optional().nullable(),
+    presentation: z.string().optional().nullable(),
+    ta: z.string().optional().nullable(),
+    edema: z.boolean().optional(),
+    albuminuria: z.string().optional().nullable(),
+    glycosuria: z.string().optional().nullable(),
+    hb: z.string().optional().nullable(),
+    medication: z.string().optional().nullable(),
+    hospitalization: z.string().optional().nullable(),
+  })
+  .optional()
+  .nullable()
+
 const storePatientSchema = z.object({
   first_name: z.string().min(1),
   last_name: z.string().min(1),
@@ -950,6 +971,16 @@ const storePatientSchema = z.object({
   dpa: z.string().optional().nullable(),
   gravida: z.coerce.number().int().min(0).optional().nullable(),
   para: z.coerce.number().int().min(0).optional().nullable(),
+  height_cm: z.preprocess((val) => {
+    if (val === '' || val === null || val === undefined) return undefined
+    const n = Number(val)
+    return Number.isFinite(n) ? n : undefined
+  }, z.number().int().min(120).max(220).optional()),
+  previous_breastfeeding: z.string().max(80).optional().nullable(),
+  delivery_prognosis: z.string().max(120).optional().nullable(),
+  birth_delivery: z.record(z.unknown()).optional().nullable(),
+  birth_newborn: z.record(z.unknown()).optional().nullable(),
+  initial_monitoring_visit: initialMonitoringVisitCreateSchema,
   /** Objet ou tableau (même format que l’ancien front Laravel / formulaire pro). */
   antecedents_familiaux: z.union([z.array(z.string()), z.record(z.unknown())]).optional().nullable(),
   antecedents_medicaux: z.union([z.array(z.string()), z.record(z.unknown())]).optional().nullable(),
@@ -982,6 +1013,23 @@ router.post(
     const nextNum = (await Patient.countDocuments({ createdAt: { $gte: yearStart } })) + 1
     const dossierNumber = `${year}-${String(nextNum).padStart(6, '0')}`
     const emailNorm = v.email ? String(v.email).toLowerCase().trim() : null
+
+    const hasNonEmptyValues = (inp: unknown): boolean => {
+      if (!inp || typeof inp !== 'object') return false
+      return Object.values(inp as Record<string, unknown>).some((val) => {
+        if (val === undefined || val === null || val === '') return false
+        if (typeof val === 'boolean') return true
+        return String(val).trim() !== ''
+      })
+    }
+    const birthDel =
+      hasNonEmptyValues(v.birth_delivery) && typeof v.birth_delivery === 'object'
+        ? { ...DEFAULT_DELIVERY, ...(v.birth_delivery as Record<string, unknown>) }
+        : null
+    const birthNb =
+      hasNonEmptyValues(v.birth_newborn) && typeof v.birth_newborn === 'object'
+        ? { ...DEFAULT_NEWBORN, ...(v.birth_newborn as Record<string, unknown>) }
+        : null
     const patient = await Patient.create({
       first_name: v.first_name,
       last_name: v.last_name,
@@ -996,6 +1044,11 @@ router.post(
       dpa: v.dpa ? new Date(v.dpa) : null,
       gravida: v.gravida ?? 1,
       para: v.para ?? 0,
+      height_cm: v.height_cm ?? null,
+      previous_breastfeeding: v.previous_breastfeeding ?? null,
+      delivery_prognosis: v.delivery_prognosis ?? null,
+      ...(birthDel ? { birth_delivery: birthDel } : {}),
+      ...(birthNb ? { birth_newborn: birthNb } : {}),
       antecedents_familiaux: v.antecedents_familiaux ?? {},
       antecedents_medicaux: v.antecedents_medicaux ?? {},
       antecedents_gyneo: v.antecedents_gyneo ?? {},
@@ -1004,6 +1057,27 @@ router.post(
       hospital_id: hospitalId,
       service_id: serviceId,
     })
+    const iv = v.initial_monitoring_visit
+    if (iv?.visit_date && String(iv.weeks_ga ?? '').trim()) {
+      await PregnancyMonitoringVisit.create({
+        patient_id: patient._id,
+        visit_date: new Date(iv.visit_date),
+        weeks_ga: String(iv.weeks_ga).trim(),
+        metrorragia: iv.metrorragia ?? false,
+        leucorrhea: iv.leucorrhea ?? false,
+        ma: iv.ma ?? null,
+        hu: iv.hu ?? null,
+        bdc: iv.bdc ?? null,
+        presentation: iv.presentation ?? null,
+        ta: iv.ta ?? null,
+        edema: iv.edema ?? false,
+        albuminuria: iv.albuminuria ?? null,
+        glycosuria: iv.glycosuria ?? null,
+        hb: iv.hb ?? null,
+        medication: iv.medication ?? null,
+        hospitalization: iv.hospitalization ?? null,
+      })
+    }
     const c = patientComputed({ ddr: patient.ddr, dpa: patient.dpa })
     res.status(201).json({
       message: 'Dossier créé',
